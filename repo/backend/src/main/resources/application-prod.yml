@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: ${DOJOSTAY_DB_URL:jdbc:mysql://localhost:3306/dojostay?useSSL=false&serverTimezone=UTC}
+    username: ${DOJOSTAY_DB_USERNAME:dojostay}
+    password: ${DOJOSTAY_DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+
+dojostay:
+  bootstrap:
+    seed-on-start: false
+  security:
+    # REQUIRED in prod. 32 raw bytes, base64-encoded. The application will
+    # refuse to start if this key is missing or invalid. Supply via env var:
+    #   DOJOSTAY_SECURITY_ENCRYPTION_KEY=<base64 key>
+    encryption-key: ${DOJOSTAY_SECURITY_ENCRYPTION_KEY}
+
+logging:
+  level:
+    root: WARN
+    com.dojostay: INFO

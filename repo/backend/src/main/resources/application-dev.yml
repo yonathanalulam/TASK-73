@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/dojostay?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: dojostay
+    password: dojostay
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+dojostay:
+  bootstrap:
+    seed-on-start: true
+    admin-username: admin
+    admin-password: ChangeMe!2026Dev
+    sample-staff-username: staff-hq
+    sample-staff-password: StaffPass!2026Dev
+  security:
+    # Local development AES-256 key. Override in production via environment
+    # variable DOJOSTAY_SECURITY_ENCRYPTION_KEY. Rotating this key WILL break
+    # decryption of existing rows — a key rotation migration is not in scope
+    # for Phase 9.
+    encryption-key: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="

@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: ${DOJOSTAY_DB_URL:jdbc:mysql://mysql:3306/dojostay?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
+    username: ${DOJOSTAY_DB_USERNAME:dojostay}
+    password: ${DOJOSTAY_DB_PASSWORD:dojostay}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+
+dojostay:
+  bootstrap:
+    seed-on-start: true
+    admin-username: ${DOJOSTAY_BOOTSTRAP_ADMIN_USERNAME:admin}
+    admin-password: ${DOJOSTAY_BOOTSTRAP_ADMIN_PASSWORD:ChangeMe!2026Docker}
+    sample-staff-username: ${DOJOSTAY_BOOTSTRAP_SAMPLE_STAFF_USERNAME:staff-hq}
+    sample-staff-password: ${DOJOSTAY_BOOTSTRAP_SAMPLE_STAFF_PASSWORD:StaffPass!2026Docker}
+  security:
+    encryption-key: ${DOJOSTAY_SECURITY_ENCRYPTION_KEY:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
+  cors:
+    allowed-origins:
+      - http://localhost:8080
+      - http://127.0.0.1:8080
+  credentials:
+    upload-dir: /var/lib/dojostay/credentials
+  property:
+    upload-dir: /var/lib/dojostay/property-images
