@@ -21,6 +21,10 @@ dojostay:
     admin-password: ${DOJOSTAY_BOOTSTRAP_ADMIN_PASSWORD:ChangeMe!2026Docker}
     sample-staff-username: ${DOJOSTAY_BOOTSTRAP_SAMPLE_STAFF_USERNAME:staff-hq}
     sample-staff-password: ${DOJOSTAY_BOOTSTRAP_SAMPLE_STAFF_PASSWORD:StaffPass!2026Docker}
+    sample-student-username: ${DOJOSTAY_BOOTSTRAP_SAMPLE_STUDENT_USERNAME:demo-student}
+    sample-student-password: ${DOJOSTAY_BOOTSTRAP_SAMPLE_STUDENT_PASSWORD:Student!2026Docker}
+    sample-photographer-username: ${DOJOSTAY_BOOTSTRAP_SAMPLE_PHOTOGRAPHER_USERNAME:demo-photo}
+    sample-photographer-password: ${DOJOSTAY_BOOTSTRAP_SAMPLE_PHOTOGRAPHER_PASSWORD:PhotoPass!2026Docker}
   security:
     encryption-key: ${DOJOSTAY_SECURITY_ENCRYPTION_KEY:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
   cors:
