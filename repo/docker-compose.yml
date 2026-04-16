@@ -33,6 +33,10 @@ services:
       DOJOSTAY_BOOTSTRAP_ADMIN_PASSWORD: ChangeMe!2026Docker
       DOJOSTAY_BOOTSTRAP_SAMPLE_STAFF_USERNAME: staff-hq
       DOJOSTAY_BOOTSTRAP_SAMPLE_STAFF_PASSWORD: StaffPass!2026Docker
+      DOJOSTAY_BOOTSTRAP_SAMPLE_STUDENT_USERNAME: demo-student
+      DOJOSTAY_BOOTSTRAP_SAMPLE_STUDENT_PASSWORD: Student!2026Docker
+      DOJOSTAY_BOOTSTRAP_SAMPLE_PHOTOGRAPHER_USERNAME: demo-photo
+      DOJOSTAY_BOOTSTRAP_SAMPLE_PHOTOGRAPHER_PASSWORD: PhotoPass!2026Docker
     volumes:
       - backend-credentials:/var/lib/dojostay/credentials
       - backend-property-images:/var/lib/dojostay/property-images

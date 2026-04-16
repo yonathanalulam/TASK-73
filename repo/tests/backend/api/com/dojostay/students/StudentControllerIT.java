@@ -36,6 +36,7 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -159,6 +160,198 @@ class StudentControllerIT {
         // Two real rows landed in the students table.
         long persisted = studentRepository.count();
         org.junit.jupiter.api.Assertions.assertEquals(2, persisted);
+    }
+
+    @Test
+    void get_student_by_id_without_auth_returns_401() throws Exception {
+        mockMvc.perform(get("/api/students/1"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void get_student_by_id_as_admin_returns_student() throws Exception {
+        Authentication adminAuth = adminAuthentication();
+
+        // Create a student first
+        ObjectNode createBody = objectMapper.createObjectNode();
+        createBody.put("organizationId", ORG_A);
+        createBody.put("fullName", "Test Student");
+        createBody.put("email", "test@example.test");
+        createBody.put("externalId", "EXT-GET");
+
+        String createResponse = mockMvc.perform(post("/api/students")
+                        .with(authentication(adminAuth)).with(csrf())
+                        .contentType("application/json")
+                        .content(createBody.toString()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        Long studentId = objectMapper.readTree(createResponse).path("data").path("id").asLong();
+
+        mockMvc.perform(get("/api/students/" + studentId).with(authentication(adminAuth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.fullName").value("Test Student"))
+                .andExpect(jsonPath("$.data.externalId").value("EXT-GET"));
+    }
+
+    @Test
+    void update_student_as_admin_succeeds() throws Exception {
+        Authentication adminAuth = adminAuthentication();
+
+        // Create a student first
+        ObjectNode createBody = objectMapper.createObjectNode();
+        createBody.put("organizationId", ORG_A);
+        createBody.put("fullName", "Before Update");
+        createBody.put("email", "before@example.test");
+        createBody.put("externalId", "EXT-UPD");
+
+        String createResponse = mockMvc.perform(post("/api/students")
+                        .with(authentication(adminAuth)).with(csrf())
+                        .contentType("application/json")
+                        .content(createBody.toString()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        Long studentId = objectMapper.readTree(createResponse).path("data").path("id").asLong();
+
+        ObjectNode updateBody = objectMapper.createObjectNode();
+        updateBody.put("fullName", "After Update");
+        updateBody.put("skillLevel", "blue");
+
+        mockMvc.perform(put("/api/students/" + studentId)
+                        .with(authentication(adminAuth)).with(csrf())
+                        .contentType("application/json")
+                        .content(updateBody.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.fullName").value("After Update"))
+                .andExpect(jsonPath("$.data.skillLevel").value("blue"));
+    }
+
+    @Test
+    void student_me_without_self_read_returns_403() throws Exception {
+        Authentication noSelfRead = authenticationFor(
+                new CurrentUser(999L, "nobody", "Nobody", UserRoleType.STUDENT,
+                        Set.of("STUDENT"), Set.of()),
+                "ROLE_STUDENT"
+        );
+        mockMvc.perform(get("/api/students/me").with(authentication(noSelfRead)))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- PUT /api/students/me tests ----
+
+    @Test
+    void update_my_profile_without_auth_returns_401() throws Exception {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("phone", "555-9999");
+
+        mockMvc.perform(put("/api/students/me")
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body.toString()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void update_my_profile_without_self_write_returns_403() throws Exception {
+        Authentication noSelfWrite = authenticationFor(
+                new CurrentUser(999L, "nobody", "Nobody", UserRoleType.STUDENT,
+                        Set.of("STUDENT"), Set.of()),
+                "ROLE_STUDENT"
+        );
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("phone", "555-9999");
+
+        mockMvc.perform(put("/api/students/me")
+                        .with(authentication(noSelfWrite))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body.toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void update_my_profile_with_valid_student_succeeds() throws Exception {
+        // Create a STUDENT role
+        Role studentRole = new Role();
+        studentRole.setCode("STUDENT");
+        studentRole.setDisplayName("Student");
+        roleRepository.save(studentRole);
+
+        // Create a user with STUDENT role
+        User studentUser = new User();
+        studentUser.setUsername("self-student");
+        studentUser.setFullName("Self Student");
+        studentUser.setPasswordHash(passwordEncoder.encode("Seeded-Pass!9"));
+        studentUser.setPrimaryRole(UserRoleType.STUDENT);
+        studentUser.setEnabled(true);
+        studentUser.setRoles(new HashSet<>(Set.of(studentRole)));
+        userRepository.save(studentUser);
+        Long studentUserId = studentUser.getId();
+
+        // Create a Student entity linked to that user
+        Student student = new Student();
+        student.setUserId(studentUserId);
+        student.setOrganizationId(ORG_A);
+        student.setFullName("Self Student");
+        student.setEmail("self@example.test");
+        student.setExternalId("EXT-SELF");
+        studentRepository.save(student);
+
+        // Authenticate as the student with self-write permission
+        Authentication selfAuth = authenticationFor(
+                new CurrentUser(studentUserId, "self-student", "Self Student",
+                        UserRoleType.STUDENT, Set.of("STUDENT"),
+                        Set.of("students.self.read", "students.self.write")),
+                "ROLE_STUDENT", "students.self.read", "students.self.write"
+        );
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("phone", "555-1234");
+        body.put("emergencyContactName", "Parent Contact");
+        body.put("emergencyContactPhone", "555-5678");
+        body.put("notes", "Updated via self-service");
+
+        mockMvc.perform(put("/api/students/me")
+                        .with(authentication(selfAuth))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.phone").value("555-1234"))
+                .andExpect(jsonPath("$.data.emergencyContactName").value("Parent Contact"))
+                .andExpect(jsonPath("$.data.emergencyContactPhone").value("555-5678"))
+                .andExpect(jsonPath("$.data.notes").value("Updated via self-service"))
+                .andExpect(jsonPath("$.data.fullName").value("Self Student"));
+    }
+
+    @Test
+    void import_template_without_permission_returns_403() throws Exception {
+        Authentication noImport = authenticationFor(
+                new CurrentUser(999L, "nobody", "Nobody", UserRoleType.STUDENT,
+                        Set.of("STUDENT"), Set.of()),
+                "ROLE_STUDENT"
+        );
+        mockMvc.perform(get("/api/students/import/template").with(authentication(noImport)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void import_template_as_admin_returns_csv() throws Exception {
+        Authentication adminAuth = adminAuthentication();
+
+        mockMvc.perform(get("/api/students/import/template").with(authentication(adminAuth)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void import_errors_without_auth_returns_401() throws Exception {
+        mockMvc.perform(get("/api/students/import/999/errors"))
+                .andExpect(status().isUnauthorized());
     }
 
     private Authentication adminAuthentication() {

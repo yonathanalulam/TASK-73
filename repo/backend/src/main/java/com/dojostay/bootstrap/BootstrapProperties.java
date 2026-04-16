@@ -18,6 +18,12 @@ public class BootstrapProperties {
     private String sampleStaffUsername = "staff-hq";
     private String sampleStaffPassword;
 
+    private String sampleStudentUsername = "demo-student";
+    private String sampleStudentPassword;
+
+    private String samplePhotographerUsername = "demo-photo";
+    private String samplePhotographerPassword;
+
     public boolean isSeedOnStart() { return seedOnStart; }
     public void setSeedOnStart(boolean seedOnStart) { this.seedOnStart = seedOnStart; }
 
@@ -32,4 +38,16 @@ public class BootstrapProperties {
 
     public String getSampleStaffPassword() { return sampleStaffPassword; }
     public void setSampleStaffPassword(String sampleStaffPassword) { this.sampleStaffPassword = sampleStaffPassword; }
+
+    public String getSampleStudentUsername() { return sampleStudentUsername; }
+    public void setSampleStudentUsername(String sampleStudentUsername) { this.sampleStudentUsername = sampleStudentUsername; }
+
+    public String getSampleStudentPassword() { return sampleStudentPassword; }
+    public void setSampleStudentPassword(String sampleStudentPassword) { this.sampleStudentPassword = sampleStudentPassword; }
+
+    public String getSamplePhotographerUsername() { return samplePhotographerUsername; }
+    public void setSamplePhotographerUsername(String samplePhotographerUsername) { this.samplePhotographerUsername = samplePhotographerUsername; }
+
+    public String getSamplePhotographerPassword() { return samplePhotographerPassword; }
+    public void setSamplePhotographerPassword(String samplePhotographerPassword) { this.samplePhotographerPassword = samplePhotographerPassword; }
 }

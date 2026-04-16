@@ -20,6 +20,8 @@ import com.dojostay.ops.FeatureToggle;
 import com.dojostay.ops.FeatureToggleRepository;
 import com.dojostay.scopes.DataScopeRule;
 import com.dojostay.scopes.DataScopeRuleRepository;
+import com.dojostay.students.Student;
+import com.dojostay.students.StudentRepository;
 import com.dojostay.users.User;
 import com.dojostay.users.UserRepository;
 import org.slf4j.Logger;
@@ -196,6 +198,7 @@ public class DataSeeder {
     private final FacilityAreaRepository facilityAreaRepository;
     private final DataScopeRuleRepository dataScopeRuleRepository;
     private final FeatureToggleRepository featureToggleRepository;
+    private final StudentRepository studentRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
 
@@ -209,6 +212,7 @@ public class DataSeeder {
                       FacilityAreaRepository facilityAreaRepository,
                       DataScopeRuleRepository dataScopeRuleRepository,
                       FeatureToggleRepository featureToggleRepository,
+                      StudentRepository studentRepository,
                       PasswordEncoder passwordEncoder,
                       AuditService auditService) {
         this.props = props;
@@ -221,6 +225,7 @@ public class DataSeeder {
         this.facilityAreaRepository = facilityAreaRepository;
         this.dataScopeRuleRepository = dataScopeRuleRepository;
         this.featureToggleRepository = featureToggleRepository;
+        this.studentRepository = studentRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
     }
@@ -238,6 +243,8 @@ public class DataSeeder {
         SampleOrg sample = seedSampleOrg();
         seedAdmin();
         seedSampleStaff(sample);
+        seedSampleStudent(sample);
+        seedSamplePhotographer(sample);
         seedFeatureToggles();
     }
 
@@ -416,6 +423,67 @@ public class DataSeeder {
                 "Sample staff scoped to organization " + SAMPLE_ORG_CODE,
                 null
         );
+    }
+
+    /**
+     * Creates a demo student user with a linked student profile so the STUDENT
+     * role can be exercised in Docker mode without manual setup.
+     */
+    private void seedSampleStudent(SampleOrg sample) {
+        if (props.getSampleStudentPassword() == null || props.getSampleStudentPassword().isBlank()) {
+            return;
+        }
+        if (userRepository.existsByUsername(props.getSampleStudentUsername())) {
+            return;
+        }
+        Role studentRole = roleRepository.findByCode("STUDENT").orElseThrow();
+        User student = new User();
+        student.setUsername(props.getSampleStudentUsername());
+        student.setFullName("Demo Student");
+        student.setPasswordHash(passwordEncoder.encode(props.getSampleStudentPassword()));
+        student.setPrimaryRole(UserRoleType.STUDENT);
+        student.setOrganizationId(sample.organization().getId());
+        student.setEnabled(true);
+        student.setRoles(new HashSet<>(Set.of(studentRole)));
+        User savedUser = userRepository.save(student);
+
+        // Link a student profile to this user so /api/students/me works
+        Student profile = new Student();
+        profile.setUserId(savedUser.getId());
+        profile.setOrganizationId(sample.organization().getId());
+        profile.setFullName("Demo Student");
+        profile.setEmail("demo-student@dojostay.local");
+        profile.setExternalId("DEMO-STU-001");
+        studentRepository.save(profile);
+
+        log.info("[seed] sample student user created: {} with linked student profile",
+                props.getSampleStudentUsername());
+    }
+
+    /**
+     * Creates a demo photographer user so the PHOTOGRAPHER role can be exercised
+     * in Docker mode without manual setup.
+     */
+    private void seedSamplePhotographer(SampleOrg sample) {
+        if (props.getSamplePhotographerPassword() == null || props.getSamplePhotographerPassword().isBlank()) {
+            return;
+        }
+        if (userRepository.existsByUsername(props.getSamplePhotographerUsername())) {
+            return;
+        }
+        Role photoRole = roleRepository.findByCode("PHOTOGRAPHER").orElseThrow();
+        User photographer = new User();
+        photographer.setUsername(props.getSamplePhotographerUsername());
+        photographer.setFullName("Demo Photographer");
+        photographer.setPasswordHash(passwordEncoder.encode(props.getSamplePhotographerPassword()));
+        photographer.setPrimaryRole(UserRoleType.PHOTOGRAPHER);
+        photographer.setOrganizationId(sample.organization().getId());
+        photographer.setEnabled(true);
+        photographer.setRoles(new HashSet<>(Set.of(photoRole)));
+        userRepository.save(photographer);
+
+        log.info("[seed] sample photographer user created: {}",
+                props.getSamplePhotographerUsername());
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.dojostay.auth;
 
 import com.dojostay.DojoStayApplication;
+import com.dojostay.auth.CurrentUser;
 import com.dojostay.roles.Role;
 import com.dojostay.roles.RoleRepository;
 import com.dojostay.roles.UserRoleType;
@@ -10,10 +11,15 @@ import com.dojostay.users.UserLockStateRepository;
 import com.dojostay.users.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -21,10 +27,12 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -50,6 +58,7 @@ class AuthControllerIT {
     @Autowired private ObjectMapper objectMapper;
 
     private MockMvc mockMvc;
+    private Long aliceId;
 
     @BeforeEach
     void setUp() {
@@ -73,6 +82,12 @@ class AuthControllerIT {
         u.setEnabled(true);
         u.setRoles(new HashSet<>(Set.of(admin)));
         userRepository.save(u);
+        aliceId = u.getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -141,5 +156,114 @@ class AuthControllerIT {
                         .content(rightBody.toString()))
                 .andExpect(status().isLocked())
                 .andExpect(jsonPath("$.error.code").value("ACCOUNT_LOCKED"));
+    }
+
+    @Test
+    void csrf_endpoint_returns_200_without_session() throws Exception {
+        mockMvc.perform(get("/api/auth/csrf"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void logout_without_session_returns_401() throws Exception {
+        mockMvc.perform(post("/api/auth/logout").with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void logout_with_session_returns_success() throws Exception {
+        Authentication adminAuth = authenticationFor(
+                new CurrentUser(aliceId, "alice", "Alice Admin", UserRoleType.ADMIN,
+                        Set.of("ADMIN"), Set.of()),
+                "ROLE_ADMIN"
+        );
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .with(authentication(adminAuth))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void change_password_without_session_returns_401() throws Exception {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("currentPassword", "CorrectHorse9!");
+        body.put("newPassword", "NewPassword!2026");
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body.toString()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void change_password_with_valid_session_succeeds() throws Exception {
+        Authentication adminAuth = authenticationFor(
+                new CurrentUser(aliceId, "alice", "Alice Admin", UserRoleType.ADMIN,
+                        Set.of("ADMIN"), Set.of()),
+                "ROLE_ADMIN"
+        );
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("currentPassword", "CorrectHorse9!");
+        body.put("newPassword", "NewPassword!2026");
+
+        mockMvc.perform(post("/api/auth/change-password")
+                        .with(authentication(adminAuth))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void unlock_without_admin_role_returns_403() throws Exception {
+        Authentication studentAuth = authenticationFor(
+                new CurrentUser(999L, "nobody", "Nobody", UserRoleType.STUDENT,
+                        Set.of("STUDENT"), Set.of()),
+                "ROLE_STUDENT"
+        );
+
+        mockMvc.perform(post("/api/auth/unlock/" + aliceId)
+                        .with(authentication(studentAuth))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void unlock_as_admin_succeeds() throws Exception {
+        // Lock the account first
+        ObjectNode wrongBody = objectMapper.createObjectNode();
+        wrongBody.put("username", "alice");
+        wrongBody.put("password", "WrongPassword!1");
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .with(csrf())
+                            .contentType("application/json")
+                            .content(wrongBody.toString()))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        Authentication adminAuth = authenticationFor(
+                new CurrentUser(aliceId, "alice", "Alice Admin", UserRoleType.ADMIN,
+                        Set.of("ADMIN"), Set.of()),
+                "ROLE_ADMIN"
+        );
+
+        mockMvc.perform(post("/api/auth/unlock/" + aliceId)
+                        .with(authentication(adminAuth))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    private static Authentication authenticationFor(CurrentUser cu, String... authorities) {
+        var granted = List.of(authorities).stream()
+                .map(SimpleGrantedAuthority::new)
+                .toList();
+        return new UsernamePasswordAuthenticationToken(cu, "n/a", granted);
     }
 }

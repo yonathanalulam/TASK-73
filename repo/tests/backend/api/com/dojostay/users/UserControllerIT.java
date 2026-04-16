@@ -165,6 +165,98 @@ class UserControllerIT {
                 "Expected a ROLE_ASSIGNED audit row for the target user");
     }
 
+    @Test
+    void get_user_by_id_without_auth_returns_401() throws Exception {
+        mockMvc.perform(get("/api/users/" + targetId))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void get_user_by_id_as_admin_returns_user() throws Exception {
+        Authentication adminAuth = adminAuthentication();
+
+        mockMvc.perform(get("/api/users/" + targetId).with(authentication(adminAuth)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.username").value("jane-student"))
+                .andExpect(jsonPath("$.data.fullName").value("Jane Student"));
+    }
+
+    @Test
+    void get_user_by_id_without_permission_returns_403() throws Exception {
+        Authentication studentAuth = authenticationFor(
+                new CurrentUser(999L, "nobody", "Nobody", UserRoleType.STUDENT,
+                        Set.of("STUDENT"), Set.of()),
+                "ROLE_STUDENT"
+        );
+
+        mockMvc.perform(get("/api/users/" + targetId).with(authentication(studentAuth)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void create_user_as_admin_succeeds() throws Exception {
+        Authentication adminAuth = adminAuthentication();
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("username", "new-staff");
+        body.put("fullName", "New Staff Member");
+        body.put("email", "newstaff@example.test");
+        body.put("primaryRole", "STAFF");
+        body.put("password", "StaffPass!2026x");
+        body.putArray("roleCodes").add("STAFF");
+
+        mockMvc.perform(post("/api/users")
+                        .with(authentication(adminAuth))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.username").value("new-staff"))
+                .andExpect(jsonPath("$.data.fullName").value("New Staff Member"))
+                .andExpect(jsonPath("$.data.primaryRole").value("STAFF"));
+    }
+
+    @Test
+    void create_user_without_permission_returns_403() throws Exception {
+        Authentication studentAuth = authenticationFor(
+                new CurrentUser(999L, "nobody", "Nobody", UserRoleType.STUDENT,
+                        Set.of("STUDENT"), Set.of()),
+                "ROLE_STUDENT"
+        );
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("username", "new-user");
+        body.put("fullName", "New User");
+        body.put("password", "StaffPass!2026x");
+
+        mockMvc.perform(post("/api/users")
+                        .with(authentication(studentAuth))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body.toString()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void update_user_as_admin_succeeds() throws Exception {
+        Authentication adminAuth = adminAuthentication();
+
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("fullName", "Jane Updated");
+        body.put("enabled", true);
+
+        mockMvc.perform(put("/api/users/" + targetId)
+                        .with(authentication(adminAuth))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.fullName").value("Jane Updated"));
+    }
+
     private Role saveRole(String code, String displayName) {
         Role r = new Role();
         r.setCode(code);
