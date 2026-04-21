@@ -148,7 +148,6 @@
 
 ## 9. Final Notes
 - This audit is static-only; no runtime success claims are made.
-- The codebase has materially progressed versus earlier baseline expectations, but acceptance is blocked by production-safety and integration-correctness gaps.
 - Recommended fix order:
   1. Fail-fast encryption behavior for non-dev profiles (remove plaintext fallback in production).
   2. Reconcile frontend API typings/pages with backend DTO shapes (students, training, notifications).
